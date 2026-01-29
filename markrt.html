@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Sage: Text Assistant (Proxy-Powered)</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load required Firebase components (Authentication setup remains for context) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase variables required by the environment
+        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        if (window.firebaseConfig) {
+            window.app = initializeApp(window.firebaseConfig);
+            window.db = getFirestore(window.app);
+            window.auth = getAuth(window.app);
+            setLogLevel('Debug'); // Enable Firestore logging
+
+            // Authentication logic
+            onAuthStateChanged(window.auth, (user) => {
+                if (!user) {
+                    if (window.initialAuthToken) {
+                        signInWithCustomToken(window.auth, window.initialAuthToken)
+                            .then(() => console.log("Signed in with custom token."))
+                            .catch(error => {
+                                console.error("Custom token sign-in failed:", error);
+                                signInAnonymously(window.auth);
+                            });
+                    } else {
+                        signInAnonymously(window.auth)
+                            .then(() => console.log("Signed in anonymously."))
+                            .catch(error => console.error("Anonymous sign-in failed:", error));
+                    }
+                }
+            });
+        }
+    </script>
+    <style>
+        /* Custom styles for better scroll and UI look */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; /* Dark background */
+        }
+        .chat-message-ai {
+            background-color: #161b22; /* Slightly lighter dark background for AI bubble */
+        }
+        .chat-message-user {
+            background-color: #008080; /* Teal for user bubble */
+        }
+        /* Custom scrollbar for chat window */
+        #chatWindow::-webkit-scrollbar {
+            width: 8px;
+        }
+        #chatWindow::-webkit-scrollbar-track {
+            background: #161b22;
+        }
+        #chatWindow::-webkit-scrollbar-thumb {
+            background: #444c56;
+            border-radius: 4px;
+        }
+        /* Ensure the textarea height remains fluid */
+        #chatInput {
+            min-height: 48px;
+        }
+        /* Loading animation for the spinner */
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen antialiased text-gray-100">
+
+    <div class="flex flex-col flex-1 max-w-4xl mx-auto w-full p-4 md:p-6">
+        <!-- Header -->
+        <header class="text-center pb-4 border-b border-gray-700">
+            <h1 class="text-3xl font-bold text-teal-400">Market Sage 💬</h1>
+            <p class="text-gray-400">Basic Chat powered by your secure local proxy server.</p>
+        </header>
+        
+        <!-- Chat Window -->
+        <div id="chatWindow" class="flex-1 overflow-y-auto mt-4 p-4 space-y-4 rounded-xl bg-[#0e1218] shadow-2xl">
+            <!-- Initial AI Welcome Message -->
+            <div class="flex justify-start">
+                <div class="chat-message-ai p-4 rounded-xl max-w-xs md:max-w-md shadow-md">
+                    <p class="text-sm font-semibold text-teal-300">Market Sage</p>
+                    <p class="mt-1 text-gray-200">Hello! I'm Market Sage. I am your world crypto analyst. Feel free to ask me any crypto related questions!</p>
+                </div>
+            </div>
+            <!-- Chat messages will be appended here -->
+            <div id="loadingIndicator" class="flex justify-start hidden">
+                <div class="chat-message-ai p-3 rounded-xl shadow-md flex items-center space-x-2">
+                    <div class="w-4 h-4 border-2 border-teal-400 border-t-transparent rounded-full animate-spin-slow"></div>
+                    <span id="loadingText" class="text-sm text-gray-300">Communicating with backend...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area (Main Chat) -->
+        <div class="mt-4 pt-4 border-t border-gray-700">
+            <div class="relative flex items-end">
+                <!-- File Upload Button and related logic removed as proxy doesn't support multimodal -->
+                
+                <!-- Text Input -->
+                <textarea id="chatInput"
+                    class="flex-1 w-full p-4 border border-gray-600 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-gray-800 text-gray-200 resize-none overflow-hidden transition-all duration-300"
+                    placeholder="Ask about a financial asset or anything else..."
+                    oninput="autoResize(this)"
+                    onkeypress="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }"></textarea>
+
+                <!-- Send Button -->
+                <button id="sendButton" onclick="sendMessage()"
+                    class="ml-2 p-3 text-white bg-teal-600 hover:bg-teal-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 transition duration-150 ease-in-out">
+                    <svg class="w-6 h-6 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                </button>
+            </div>
+            <!-- File Preview Area removed -->
+        </div>
+    </div>
+
+    <script>
+        // --- NEW CONFIGURATION ---
+        // Dynamically set the API URL based on the current environment
+        const BACKEND_URL = (() => {
+            const protocol = window.location.protocol; // https: or http:
+            const host = window.location.host; // domain.com or localhost:port
+            
+            // If running on Vercel or any https domain (production), use relative path
+            if (host.includes('vercel.app') || protocol === 'https:') {
+                return '/api/chat'; // Use relative path (same origin)
+            }
+            
+            // If running locally, use localhost
+            if (host.includes('localhost') || host.includes('127.0.0.1')) {
+                return 'http://localhost:3000/api/chat';
+            }
+            
+            // Default to relative path for safety
+            return '/api/chat';
+        })();
+        
+        console.log('Backend URL configured as:', BACKEND_URL);
+        // --- END NEW CONFIGURATION ---
+
+        // Utility to automatically resize the textarea
+        function autoResize(element) {
+            element.style.height = 'auto';
+            element.style.height = element.scrollHeight + 'px';
+        }
+
+        /**
+         * Renders a message bubble in the chat window.
+         * @param {string} role 'user' or 'ai'
+         * @param {string} text The message content
+         */
+        function renderMessage(role, text) {
+            const chatWindow = document.getElementById('chatWindow');
+            const isUser = role === 'user';
+            
+            const messageContainer = document.createElement('div');
+            messageContainer.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+
+            const messageBubble = document.createElement('div');
+            messageBubble.className = `p-4 rounded-xl max-w-xs md:max-w-md shadow-lg ${isUser ? 'chat-message-user text-white' : 'chat-message-ai'}`;
+
+            if (!isUser) {
+                const title = document.createElement('p');
+                title.className = 'text-sm font-semibold text-teal-300';
+                title.textContent = 'Market Sage';
+                messageBubble.appendChild(title);
+            }
+
+            if (text) {
+                const textContent = document.createElement('p');
+                textContent.className = `mt-1 ${isUser ? 'text-white' : 'text-gray-200'} whitespace-pre-wrap`;
+                textContent.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1'); // Basic Markdown bolding
+                messageBubble.appendChild(textContent);
+            }
+
+            messageContainer.appendChild(messageBubble);
+            chatWindow.appendChild(messageContainer);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        // --- CORE API CALL (Simplified) ---
+
+        /**
+         * Performs the API call with exponential backoff.
+         */
+        async function fetchWithRetry(url, payload) {
+            let response = null;
+            let attempts = 0;
+            const maxAttempts = 3;
+
+            while (attempts < maxAttempts) {
+                try {
+                    response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        return response;
+                    }
+
+                } catch (error) {
+                    // Network errors
+                    console.warn(`Attempt ${attempts + 1} failed (Network):`, error);
+                }
+
+                attempts++;
+                if (attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempts - 1)));
+                }
+            }
+            throw new Error("Failed to connect to the backend server after retries. Please check your internet connection and try again.");
+        }
+
+
+        /**
+         * Cleans up UI elements after the message is sent and response is received.
+         */
+        function cleanupAfterSend() {
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            document.getElementById('sendButton').disabled = false;
+        }
+        
+        /**
+         * Handles the main chat submission and proxy API call.
+         */
+        async function sendMessage() {
+            const chatInput = document.getElementById('chatInput');
+            const prompt = chatInput.value.trim();
+            const sendButton = document.getElementById('sendButton');
+
+            if (!prompt) return;
+
+            // 1. Display User Message
+            renderMessage('user', prompt);
+
+            // 2. Disable input and show loading
+            chatInput.value = '';
+            autoResize(chatInput);
+            sendButton.disabled = true;
+            document.getElementById('loadingIndicator').classList.remove('hidden');
+            document.getElementById('loadingText').textContent = "Waiting for proxy response...";
+
+            // 3. Construct payload for the proxy
+            const payload = {
+                prompt: prompt
+            };
+            
+            try {
+                const response = await fetchWithRetry(BACKEND_URL, payload);
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Expected successful response format: { text: "..." }
+                    const aiText = result.text || 'Received an empty response from the AI.';
+                    renderMessage('ai', aiText);
+                } else {
+                    // Handle non-200 responses from the proxy (which usually contain an error field)
+                    const errorMessage = result.error || 'Unknown error occurred in the proxy server.';
+                    renderMessage('ai', `**Proxy Error:** ${errorMessage}`);
+                }
+
+            } catch (e) {
+                console.error("Critical connection error:", e);
+                renderMessage('ai', `**Connection Error:** ${e.message}`);
+            } finally {
+                cleanupAfterSend();
+            }
+        }
+    </script>
+</body>
+</html>
